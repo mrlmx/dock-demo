@@ -12,7 +12,7 @@ import Combine
 class DockViewModel: ObservableObject {
     // MARK: - 发布的属性
     @Published var isVisible: Bool = false
-    @Published var items: [DockItem] = DockItem.sampleItems
+    @Published var items: [DockItem] = []
     @Published var position: DockPosition = .right
     @Published var hoveredItemId: UUID? = nil
     
@@ -25,29 +25,58 @@ class DockViewModel: ObservableObject {
     
     // MARK: - 私有属性
     private var mouseTracker: Any?
+    private var localMouseTracker: Any?
     private var hideTimer: Timer?
     private let hideDelay: TimeInterval = 0.5 // 鼠标离开后的延迟隐藏时间
+    private var permissionCheckTimer: Timer? // 权限检查定时器
     
     init() {
-        startMouseTracking()
-        setupNotificationObservers()
+        // 确保在主线程上初始化
+        DispatchQueue.main.async { [weak self] in
+            self?.items = DockItem.sampleItems
+            self?.setupNotificationObservers()
+            // 延迟启动鼠标追踪，给系统时间初始化
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self?.startMouseTracking()
+            }
+        }
     }
     
     deinit {
         stopMouseTracking()
         hideTimer?.invalidate()
+        permissionCheckTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
     
     // MARK: - 鼠标追踪
     private func startMouseTracking() {
+        // 检查是否有辅助功能权限
+        guard AXIsProcessTrusted() else {
+            print("警告：没有辅助功能权限，无法监听全局鼠标事件")
+            // 设置一个定时器，定期检查权限状态
+            if permissionCheckTimer == nil {
+                permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
+                    if AXIsProcessTrusted() {
+                        timer.invalidate()
+                        self?.permissionCheckTimer = nil
+                        self?.startMouseTracking()
+                    }
+                }
+            }
+            return
+        }
+        
+        // 如果已经有追踪器，先停止
+        stopMouseTracking()
+        
         // 使用全局事件监听器追踪鼠标位置
         mouseTracker = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
             self?.handleMouseMoved(event)
         }
         
         // 同时监听本地事件（当鼠标在应用窗口内时）
-        NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
+        localMouseTracker = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
             self?.handleMouseMoved(event)
             return event
         }
@@ -56,6 +85,11 @@ class DockViewModel: ObservableObject {
     private func stopMouseTracking() {
         if let tracker = mouseTracker {
             NSEvent.removeMonitor(tracker)
+            mouseTracker = nil
+        }
+        if let localTracker = localMouseTracker {
+            NSEvent.removeMonitor(localTracker)
+            localMouseTracker = nil
         }
     }
     

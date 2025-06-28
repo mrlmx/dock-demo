@@ -10,6 +10,10 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedPosition: DockPosition = .right
     @State private var showInstructions = true
+    @State private var hasAccessibilityPermission = false
+    
+    // 定时器，用于定期检查权限状态
+    let permissionCheckTimer = Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()
     
     var body: some View {
         VStack(spacing: 30) {
@@ -19,6 +23,23 @@ struct ContentView: View {
                 .fontWeight(.bold)
             
             Divider()
+            
+            // 权限状态显示
+            HStack {
+                Image(systemName: hasAccessibilityPermission ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundColor(hasAccessibilityPermission ? .green : .orange)
+                
+                Text(hasAccessibilityPermission ? "辅助功能权限已授予" : "需要辅助功能权限")
+                    .font(.headline)
+                
+                if !hasAccessibilityPermission {
+                    Button("前往设置") {
+                        openAccessibilitySettings()
+                    }
+                    .buttonStyle(.link)
+                }
+            }
+            .padding(.horizontal)
             
             // 使用说明
             if showInstructions {
@@ -70,12 +91,20 @@ struct ContentView: View {
             Spacer()
             
             // 提示信息
-            Text("提示：首次运行需要授予辅助功能权限")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            if !hasAccessibilityPermission {
+                Text("提示：需要授予辅助功能权限才能监听鼠标事件")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding(30)
-        .frame(width: 500, height: 400)
+        .frame(width: 500, height: 450)
+        .onAppear {
+            checkAccessibilityPermission()
+        }
+        .onReceive(permissionCheckTimer) { _ in
+            checkAccessibilityPermission()
+        }
     }
     
     private func updateDockPosition(_ position: DockPosition) {
@@ -86,6 +115,15 @@ struct ContentView: View {
             object: nil,
             userInfo: ["position": position]
         )
+    }
+    
+    private func checkAccessibilityPermission() {
+        hasAccessibilityPermission = AXIsProcessTrusted()
+    }
+    
+    private func openAccessibilitySettings() {
+        let prefPaneURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(prefPaneURL)
     }
 }
 

@@ -8,81 +8,67 @@
 import SwiftUI
 
 struct DockView: View {
-    @StateObject private var viewModel = DockViewModel()
+    @EnvironmentObject var viewModel: DockViewModel
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // 背景
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
-                
-                // 图标容器
-                if viewModel.position.isHorizontal {
-                    HStack(spacing: viewModel.itemSpacing) {
-                        ForEach(viewModel.items) { item in
-                            DockItemView(
-                                item: item,
-                                isHovered: viewModel.hoveredItemId == item.id,
-                                itemSize: viewModel.itemSize
-                            )
-                            .onHover { isHovered in
-                                viewModel.setHoveredItem(isHovered ? item.id : nil)
-                            }
-                            .onTapGesture {
-                                item.action()
-                            }
-                        }
-                    }
-                    .padding()
-                } else {
-                    VStack(spacing: viewModel.itemSpacing) {
-                        ForEach(viewModel.items) { item in
-                            DockItemView(
-                                item: item,
-                                isHovered: viewModel.hoveredItemId == item.id,
-                                itemSize: viewModel.itemSize
-                            )
-                            .onHover { isHovered in
-                                viewModel.setHoveredItem(isHovered ? item.id : nil)
-                            }
-                            .onTapGesture {
-                                item.action()
-                            }
-                        }
-                    }
-                    .padding()
-                }
-            }
-            .frame(
-                width: viewModel.calculateDockSize().width,
-                height: viewModel.calculateDockSize().height
-            )
-            .position(
-                x: viewModel.position.anchorPoint(
-                    screenSize: geometry.size,
-                    dockSize: viewModel.calculateDockSize()
-                ).x,
-                y: viewModel.position.anchorPoint(
-                    screenSize: geometry.size,
-                    dockSize: viewModel.calculateDockSize()
-                ).y
-            )
-            .offset(
-                viewModel.isVisible ? .zero : viewModel.position.hiddenOffset(
-                    screenSize: geometry.size,
-                    dockSize: viewModel.calculateDockSize()
+        ZStack {
+            // 背景
+            RoundedRectangle(cornerRadius: 16)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
                 )
-            )
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.isVisible)
+                .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
+            
+            // 图标容器
+            if viewModel.position.isHorizontal {
+                HStack(spacing: viewModel.itemSpacing) {
+                    ForEach(viewModel.items) { item in
+                        DockItemView(
+                            item: item,
+                            isHovered: viewModel.hoveredItemId == item.id,
+                            itemSize: viewModel.itemSize
+                        )
+                        .onHover { isHovered in
+                            viewModel.setHoveredItem(isHovered ? item.id : nil)
+                        }
+                        .onTapGesture {
+                            item.action()
+                        }
+                    }
+                }
+                .padding()
+            } else {
+                VStack(spacing: viewModel.itemSpacing) {
+                    ForEach(viewModel.items) { item in
+                        DockItemView(
+                            item: item,
+                            isHovered: viewModel.hoveredItemId == item.id,
+                            itemSize: viewModel.itemSize
+                        )
+                        .onHover { isHovered in
+                            viewModel.setHoveredItem(isHovered ? item.id : nil)
+                        }
+                        .onTapGesture {
+                            item.action()
+                        }
+                    }
+                }
+                .padding()
+            }
         }
-        .ignoresSafeArea()
-        .environmentObject(viewModel)
+        .frame(
+            width: viewModel.calculateDockSize().width,
+            height: viewModel.calculateDockSize().height
+        )
+        .offset(
+            viewModel.isVisible ? .zero : viewModel.position.hiddenOffset(
+                screenSize: NSScreen.main?.frame.size ?? .zero,
+                dockSize: viewModel.calculateDockSize()
+            )
+        )
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.isVisible)
     }
 }
 
@@ -117,6 +103,7 @@ struct DockItemView: View {
 struct DockView_Previews: PreviewProvider {
     static var previews: some View {
         DockView()
-            .frame(width: 800, height: 600)
+            .environmentObject(DockViewModel())
+            .frame(width: 400, height: 80)
     }
 } 
