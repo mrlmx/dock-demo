@@ -30,16 +30,16 @@ enum DockPosition: String, CaseIterable {
     }
     
     /// 获取Dock的锚点位置
-    func anchorPoint(screenSize: CGSize, dockSize: CGSize) -> CGPoint {
+    func anchorPoint(screenSize: CGSize, dockSize: CGSize, edgeOffset: CGFloat = 0) -> CGPoint {
         switch self {
         case .top:
-            return CGPoint(x: screenSize.width / 2, y: screenSize.height - dockSize.height / 2)
+            return CGPoint(x: screenSize.width / 2, y: screenSize.height - dockSize.height / 2 - edgeOffset)
         case .bottom:
-            return CGPoint(x: screenSize.width / 2, y: dockSize.height / 2)
+            return CGPoint(x: screenSize.width / 2, y: dockSize.height / 2 + edgeOffset)
         case .left:
-            return CGPoint(x: dockSize.width / 2, y: screenSize.height / 2)
+            return CGPoint(x: dockSize.width / 2 + edgeOffset, y: screenSize.height / 2)
         case .right:
-            return CGPoint(x: screenSize.width - dockSize.width / 2, y: screenSize.height / 2)
+            return CGPoint(x: screenSize.width - dockSize.width / 2 - edgeOffset, y: screenSize.height / 2)
         }
     }
     

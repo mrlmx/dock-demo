@@ -15,6 +15,7 @@ class DockViewModel: ObservableObject {
     @Published var items: [DockItem] = []
     @Published var position: DockPosition = .right
     @Published var hoveredItemId: UUID? = nil
+    @Published var edgeOffset: CGFloat = 0 // Dock与屏幕边缘的距离，默认为0（完全贴边）
     
     // MARK: - 配置属性
     let triggerDistance: CGFloat = 5 // 触发显示的距离
@@ -132,7 +133,7 @@ class DockViewModel: ObservableObject {
     
     private func getDockRect(screenSize: CGSize) -> CGRect {
         let actualDockSize = calculateDockSize()
-        let anchorPoint = position.anchorPoint(screenSize: screenSize, dockSize: actualDockSize)
+        let anchorPoint = position.anchorPoint(screenSize: screenSize, dockSize: actualDockSize, edgeOffset: edgeOffset)
         
         return CGRect(
             x: anchorPoint.x - actualDockSize.width / 2,

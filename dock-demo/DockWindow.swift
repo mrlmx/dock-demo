@@ -11,9 +11,11 @@ import Combine
 
 /// 自定义的Dock窗口类
 class DockWindow: NSWindow {
-    private let dockViewModel = DockViewModel()
+    private let dockViewModel: DockViewModel
     
-    init() {
+    init(viewModel: DockViewModel) {
+        self.dockViewModel = viewModel
+        
         // 获取主屏幕
         guard let screen = NSScreen.main else {
             fatalError("无法获取主屏幕")
@@ -22,10 +24,17 @@ class DockWindow: NSWindow {
         // 计算Dock的初始大小和位置
         let dockSize = CGSize(width: 80, height: 400)
         let initialPosition = DockPosition.right
-        let anchorPoint = initialPosition.anchorPoint(
+        var anchorPoint = initialPosition.anchorPoint(
             screenSize: screen.frame.size,
-            dockSize: dockSize
+            dockSize: dockSize,
+            edgeOffset: dockViewModel.edgeOffset
         )
+        
+        // 对于左右位置，使用visibleFrame来实现更准确的垂直居中
+        if initialPosition == .left || initialPosition == .right {
+            let visibleCenterY = screen.visibleFrame.origin.y + screen.visibleFrame.height / 2
+            anchorPoint.y = visibleCenterY
+        }
         
         // 创建Dock大小的窗口，而不是覆盖整个屏幕
         let dockFrame = CGRect(
@@ -84,6 +93,14 @@ class DockWindow: NSWindow {
                 self?.updateWindowSize()
             }
             .store(in: &cancellables)
+        
+        // 监听边缘偏移量变化
+        dockViewModel.$edgeOffset
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.updateWindowPosition(self.dockViewModel.position)
+            }
+            .store(in: &cancellables)
     }
     
     private var cancellables = Set<AnyCancellable>()
@@ -92,10 +109,17 @@ class DockWindow: NSWindow {
         guard let screen = NSScreen.main else { return }
         
         let dockSize = dockViewModel.calculateDockSize()
-        let anchorPoint = position.anchorPoint(
+        var anchorPoint = position.anchorPoint(
             screenSize: screen.frame.size,
-            dockSize: dockSize
+            dockSize: dockSize,
+            edgeOffset: dockViewModel.edgeOffset
         )
+        
+        // 对于左右位置，使用visibleFrame来实现更准确的垂直居中
+        if position == .left || position == .right {
+            let visibleCenterY = screen.visibleFrame.origin.y + screen.visibleFrame.height / 2
+            anchorPoint.y = visibleCenterY
+        }
         
         let newFrame = CGRect(
             x: anchorPoint.x - dockSize.width / 2,
@@ -104,6 +128,15 @@ class DockWindow: NSWindow {
             height: dockSize.height
         )
         
+        // 调试信息
+        print("=== Dock位置调试信息 ===")
+        print("屏幕尺寸: \(screen.frame.size)")
+        print("屏幕可见区域: \(screen.visibleFrame)")
+        print("Dock尺寸: \(dockSize)")
+        print("锚点位置: \(anchorPoint)")
+        print("新的窗口frame: \(newFrame)")
+        print("边缘偏移量: \(dockViewModel.edgeOffset)")
+        
         self.setFrame(newFrame, display: true, animate: true)
     }
     
@@ -111,10 +144,17 @@ class DockWindow: NSWindow {
         guard let screen = NSScreen.main else { return }
         
         let dockSize = dockViewModel.calculateDockSize()
-        let anchorPoint = dockViewModel.position.anchorPoint(
+        var anchorPoint = dockViewModel.position.anchorPoint(
             screenSize: screen.frame.size,
-            dockSize: dockSize
+            dockSize: dockSize,
+            edgeOffset: dockViewModel.edgeOffset
         )
+        
+        // 对于左右位置，使用visibleFrame来实现更准确的垂直居中
+        if dockViewModel.position == .left || dockViewModel.position == .right {
+            let visibleCenterY = screen.visibleFrame.origin.y + screen.visibleFrame.height / 2
+            anchorPoint.y = visibleCenterY
+        }
         
         let newFrame = CGRect(
             x: anchorPoint.x - dockSize.width / 2,
@@ -138,17 +178,17 @@ class DockWindowManager: NSObject {
     }
     
     /// 显示Dock窗口
-    func showDockWindow() {
+    func showDockWindow(viewModel: DockViewModel) {
         // 确保在主线程上执行
         guard Thread.isMainThread else {
             DispatchQueue.main.async { [weak self] in
-                self?.showDockWindow()
+                self?.showDockWindow(viewModel: viewModel)
             }
             return
         }
         
         if dockWindow == nil {
-            dockWindow = DockWindow()
+            dockWindow = DockWindow(viewModel: viewModel)
         }
         
         // 使用orderFront而不是makeKeyAndOrderFront，避免抢夺焦点

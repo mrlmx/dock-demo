@@ -14,6 +14,7 @@ struct dock_demoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(appDelegate.dockViewModel)
         }
         .windowStyle(.hiddenTitleBar)
     }
@@ -24,14 +25,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionCheckTimer: Timer?
     private var permissionAlert: NSAlert?
     private var permissionWindow: NSWindow?
+    let dockViewModel = DockViewModel() // 创建共享的DockViewModel实例
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 先检查并请求辅助功能权限
         checkAccessibilityPermission()
         
         // 延迟显示Dock窗口，给系统时间完成初始化
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            DockWindowManager.shared.showDockWindow()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            if let viewModel = self?.dockViewModel {
+                DockWindowManager.shared.showDockWindow(viewModel: viewModel)
+            }
         }
     }
     

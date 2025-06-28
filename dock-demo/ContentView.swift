@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject var dockViewModel: DockViewModel
     @State private var selectedPosition: DockPosition = .right
     @State private var showInstructions = true
     @State private var hasAccessibilityPermission = false
@@ -68,10 +69,27 @@ struct ContentView: View {
                     }
                 }
                 .pickerStyle(SegmentedPickerStyle())
-                .onChange(of: selectedPosition) { newPosition in
+                .onChange(of: selectedPosition) { oldValue, newValue in
                     // 更新 Dock 位置
-                    updateDockPosition(newPosition)
+                    dockViewModel.position = newValue
+                    updateDockPosition(newValue)
                 }
+            }
+            
+            // 边缘偏移量控制
+            VStack(alignment: .leading, spacing: 10) {
+                Text("边缘偏移量")
+                    .font(.headline)
+                
+                HStack {
+                    Slider(value: $dockViewModel.edgeOffset, in: 0...50)
+                    Text("\(Int(dockViewModel.edgeOffset)) px")
+                        .frame(width: 50, alignment: .trailing)
+                }
+                
+                Text("控制 Dock 与屏幕边缘的距离（0 = 完全贴边）")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
             
             // 操作按钮
@@ -101,6 +119,7 @@ struct ContentView: View {
         .frame(width: 500, height: 450)
         .onAppear {
             checkAccessibilityPermission()
+            selectedPosition = dockViewModel.position
         }
         .onReceive(permissionCheckTimer) { _ in
             checkAccessibilityPermission()
