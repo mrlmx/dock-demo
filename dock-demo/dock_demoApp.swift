@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 @main
 struct dock_demoApp: App {
@@ -27,7 +28,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionWindow: NSWindow?
     let dockViewModel = DockViewModel() // 创建共享的DockViewModel实例
     
+    // 状态栏相关属性
+    private var statusItem: NSStatusItem?
+    private var settingsWindow: NSWindow?
+    private var positionObserver: AnyCancellable?
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // 设置状态栏图标
+        setupStatusBar()
+        
+        // 监听位置变化
+        positionObserver = dockViewModel.$position.sink { [weak self] newPosition in
+            // 发送位置变更通知给ContentView
+            NotificationCenter.default.post(
+                name: Notification.Name("DockPositionChanged"),
+                object: nil,
+                userInfo: ["position": newPosition]
+            )
+            // 更新菜单状态
+            self?.updateMenuPositionState()
+        }
+        
         // 先检查并请求辅助功能权限
         checkAccessibilityPermission()
         
@@ -37,12 +58,153 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 DockWindowManager.shared.showDockWindow(viewModel: viewModel)
             }
         }
+        
+        // 关闭默认的主窗口，我们使用状态栏控制显示
+        for window in NSApplication.shared.windows {
+            if window.contentViewController is NSHostingController<ContentView> {
+                window.close()
+            }
+        }
     }
     
     func applicationWillTerminate(_ notification: Notification) {
         // 清理资源
         DockWindowManager.shared.hideDockWindow()
         permissionCheckTimer?.invalidate()
+    }
+    
+    // MARK: - 状态栏功能
+    
+    private func setupStatusBar() {
+        // 创建状态栏项
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        
+        // 设置图标
+        if let button = statusItem?.button {
+            button.image = NSImage(systemSymbolName: "dock.rectangle", accessibilityDescription: "Dock Demo")
+            button.action = #selector(statusBarButtonClicked)
+            button.target = self
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
+        
+        // 创建菜单
+        setupMenu()
+    }
+    
+    private func setupMenu() {
+        let menu = NSMenu()
+        
+        // 打开设置
+        let settingsItem = NSMenuItem(title: "打开设置", action: #selector(openSettings), keyEquivalent: "")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+        
+        // 分隔线
+        menu.addItem(NSMenuItem.separator())
+        
+        // Dock位置子菜单
+        let positionItem = NSMenuItem(title: "Dock 位置", action: nil, keyEquivalent: "")
+        let positionSubmenu = NSMenu()
+        
+        for position in DockPosition.allCases {
+            let item = NSMenuItem(title: position.rawValue, action: #selector(changeDockPosition(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = position.hashValue
+            if position == dockViewModel.position {
+                item.state = .on
+            }
+            positionSubmenu.addItem(item)
+        }
+        
+        positionItem.submenu = positionSubmenu
+        menu.addItem(positionItem)
+        
+        // 分隔线
+        menu.addItem(NSMenuItem.separator())
+        
+        // 退出
+        let quitItem = NSMenuItem(title: "退出", action: #selector(quitApp), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+        
+        statusItem?.menu = menu
+    }
+    
+    @objc private func statusBarButtonClicked(_ sender: NSStatusBarButton) {
+        guard let event = NSApp.currentEvent else { return }
+        
+        if event.type == .rightMouseUp {
+            // 右键点击，显示菜单
+            // 先更新菜单状态
+            updateMenuPositionState()
+            statusItem?.menu?.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 5), in: sender)
+        } else {
+            // 左键点击，打开设置
+            openSettings()
+        }
+    }
+    
+    @objc private func openSettings() {
+        // 如果设置窗口已存在，将其前置
+        if let window = settingsWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        // 创建新的设置窗口
+        let contentView = ContentView()
+            .environmentObject(dockViewModel)
+        
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 700),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        
+        window.title = "Dock 控制中心"
+        window.center()
+        window.contentView = NSHostingView(rootView: contentView)
+        window.makeKeyAndOrderFront(nil)
+        
+        // 保持窗口引用
+        settingsWindow = window
+        
+        // 激活应用
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
+    
+    @objc private func changeDockPosition(_ sender: NSMenuItem) {
+        // 更新所有菜单项的选中状态
+        if let menu = sender.menu {
+            for item in menu.items {
+                item.state = .off
+            }
+        }
+        sender.state = .on
+        
+        // 根据tag找到对应的位置
+        if let position = DockPosition.allCases.first(where: { $0.hashValue == sender.tag }) {
+            dockViewModel.position = position
+        }
+    }
+    
+    @objc private func quitApp() {
+        NSApplication.shared.terminate(nil)
+    }
+    
+    // 更新菜单中的位置选择状态
+    private func updateMenuPositionState() {
+        guard let menu = statusItem?.menu,
+              let positionItem = menu.items.first(where: { $0.title == "Dock 位置" }),
+              let submenu = positionItem.submenu else { return }
+        
+        for item in submenu.items {
+            if let position = DockPosition.allCases.first(where: { $0.hashValue == item.tag }) {
+                item.state = position == dockViewModel.position ? .on : .off
+            }
+        }
     }
     
     private func checkAccessibilityPermission() {
@@ -65,6 +227,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showAccessibilityAlert()
         } else {
             print("辅助功能权限已授予")
+            // 权限已授予，关闭权限窗口（如果存在）
+            permissionWindow?.close()
+            permissionWindow = nil
         }
     }
     
