@@ -78,20 +78,45 @@ struct ContentView: View {
                     // Dock 位置设置卡片
                     CardView(title: "Dock 位置", icon: "rectangle.portrait.split.2x1") {
                         VStack(spacing: 15) {
-                            Picker("", selection: $selectedPosition) {
+                            // 自定义的位置选择器
+                            HStack(spacing: 0) {
                                 ForEach(DockPosition.allCases, id: \.self) { position in
-                                    HStack {
-                                        Image(systemName: positionIcon(for: position))
-                                        Text(position.rawValue)
+                                    Button(action: {
+                                        selectedPosition = position
+                                        dockViewModel.position = position
+                                        updateDockPosition(position)
+                                    }) {
+                                        VStack(spacing: 4) {
+                                            Image(systemName: positionIcon(for: position))
+                                                .font(.system(size: 20))
+                                            Text(position.rawValue)
+                                                .font(.system(size: 12))
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            selectedPosition == position ?
+                                            Color.accentColor : Color.clear
+                                        )
+                                        .foregroundColor(
+                                            selectedPosition == position ?
+                                            .white : .primary
+                                        )
                                     }
-                                    .tag(position)
+                                    .buttonStyle(PlainButtonStyle())
+                                    
+                                    if position != DockPosition.allCases.last {
+                                        Divider()
+                                            .frame(height: 40)
+                                    }
                                 }
                             }
-                            .pickerStyle(SegmentedPickerStyle())
-                            .onChange(of: selectedPosition) { oldValue, newValue in
-                                dockViewModel.position = newValue
-                                updateDockPosition(newValue)
-                            }
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            )
                             
                             // 可视化预览
                             DockPositionPreview(position: selectedPosition)
