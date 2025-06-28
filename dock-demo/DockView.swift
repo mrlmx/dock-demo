@@ -11,6 +11,9 @@ struct DockView: View {
     @EnvironmentObject var viewModel: DockViewModel
     
     var body: some View {
+        // 计算一次并缓存结果
+        let dockSize = viewModel.calculateDockSize()
+        
         ZStack {
             // 背景
             RoundedRectangle(cornerRadius: 16)
@@ -30,6 +33,7 @@ struct DockView: View {
                             isHovered: viewModel.hoveredItemId == item.id,
                             itemSize: viewModel.itemSize
                         )
+                        .id(item.id)
                         .onHover { isHovered in
                             viewModel.setHoveredItem(isHovered ? item.id : nil)
                         }
@@ -47,6 +51,7 @@ struct DockView: View {
                             isHovered: viewModel.hoveredItemId == item.id,
                             itemSize: viewModel.itemSize
                         )
+                        .id(item.id)
                         .onHover { isHovered in
                             viewModel.setHoveredItem(isHovered ? item.id : nil)
                         }
@@ -59,13 +64,13 @@ struct DockView: View {
             }
         }
         .frame(
-            width: viewModel.calculateDockSize().width,
-            height: viewModel.calculateDockSize().height
+            width: dockSize.width,
+            height: dockSize.height
         )
         .offset(
             viewModel.isVisible ? .zero : viewModel.position.hiddenOffset(
                 screenSize: NSScreen.main?.frame.size ?? .zero,
-                dockSize: viewModel.calculateDockSize()
+                dockSize: dockSize
             )
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.isVisible)

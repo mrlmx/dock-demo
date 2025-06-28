@@ -12,9 +12,11 @@ struct ContentView: View {
     @State private var selectedPosition: DockPosition = .right
     @State private var showInstructions = true
     @State private var hasAccessibilityPermission = false
+    @State private var tempEdgeOffset: CGFloat = 0
     
-    // 定时器，用于定期检查权限状态
-    let permissionCheckTimer = Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()
+    init() {
+        print("ContentView 初始化")
+    }
     
     var body: some View {
         ScrollView {
@@ -138,7 +140,7 @@ struct ContentView: View {
                                                     isSelected: selectedPosition == position,
                                                     action: {
                                                         selectedPosition = position
-                                                        dockViewModel.position = position
+                                                        // 只通过通知更新，避免重复设置
                                                         updateDockPosition(position)
                                                     }
                                                 )
@@ -163,7 +165,7 @@ struct ContentView: View {
                                             
                                             Spacer()
                                             
-                                            Text("\(Int(dockViewModel.edgeOffset)) 像素")
+                                            Text("\(Int(tempEdgeOffset)) 像素")
                                                 .font(.system(size: 16, weight: .semibold))
                                                 .foregroundColor(.primary)
                                                 .padding(.horizontal, 12)
@@ -172,8 +174,13 @@ struct ContentView: View {
                                                 .cornerRadius(8)
                                         }
                                         
-                                        Slider(value: $dockViewModel.edgeOffset, in: 0...50)
-                                            .tint(.accentColor)
+                                        Slider(value: $tempEdgeOffset, in: 0...50) { editing in
+                                            // 只在用户停止拖动时才更新ViewModel
+                                            if !editing {
+                                                dockViewModel.edgeOffset = tempEdgeOffset
+                                            }
+                                        }
+                                        .tint(.accentColor)
                                         
                                         Text("调整 Dock 与屏幕边缘的距离，让显示位置更符合你的使用习惯")
                                             .font(.system(size: 13))
@@ -207,8 +214,9 @@ struct ContentView: View {
                                             description: "恢复到默认配置",
                                             action: {
                                                 selectedPosition = .right
-                                                dockViewModel.position = .right
+                                                tempEdgeOffset = 10
                                                 dockViewModel.edgeOffset = 10
+                                                // 只通过通知更新position，避免重复设置
                                                 updateDockPosition(.right)
                                             }
                                         )
@@ -258,8 +266,10 @@ struct ContentView: View {
         .onAppear {
             checkAccessibilityPermission()
             selectedPosition = dockViewModel.position
+            tempEdgeOffset = dockViewModel.edgeOffset
         }
-        .onReceive(permissionCheckTimer) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // 当应用被激活时重新检查权限
             checkAccessibilityPermission()
         }
     }

@@ -12,6 +12,8 @@ import Combine
 /// 自定义的Dock窗口类
 class DockWindow: NSWindow {
     private let dockViewModel: DockViewModel
+    private var isUpdatingPosition = false  // 添加标志位防止重复更新
+    private var lastFrame: CGRect = .zero  // 记录上次的frame
     
     init(viewModel: DockViewModel) {
         self.dockViewModel = viewModel
@@ -67,6 +69,7 @@ class DockWindow: NSWindow {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         
         let hostingView = NSHostingView(rootView: dockView)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
         self.contentView = hostingView
         
         // 窗口应该接收鼠标事件
@@ -105,7 +108,18 @@ class DockWindow: NSWindow {
     
     private var cancellables = Set<AnyCancellable>()
     
+    deinit {
+        // 确保所有订阅都被取消
+        cancellables.removeAll()
+        print("DockWindow 已释放")
+    }
+    
     private func updateWindowPosition(_ position: DockPosition) {
+        // 防止重复更新
+        guard !isUpdatingPosition else { return }
+        isUpdatingPosition = true
+        defer { isUpdatingPosition = false }
+        
         guard let screen = NSScreen.main else { return }
         
         let dockSize = dockViewModel.calculateDockSize()
@@ -128,19 +142,27 @@ class DockWindow: NSWindow {
             height: dockSize.height
         )
         
-        // 调试信息
-        print("=== Dock位置调试信息 ===")
-        print("屏幕尺寸: \(screen.frame.size)")
-        print("屏幕可见区域: \(screen.visibleFrame)")
-        print("Dock尺寸: \(dockSize)")
-        print("锚点位置: \(anchorPoint)")
-        print("新的窗口frame: \(newFrame)")
-        print("边缘偏移量: \(dockViewModel.edgeOffset)")
-        
-        self.setFrame(newFrame, display: true, animate: true)
+        // 只在frame真正改变时打印调试信息
+        if newFrame != lastFrame {
+            print("=== Dock位置调试信息 ===")
+            print("屏幕尺寸: \(screen.frame.size)")
+            print("屏幕可见区域: \(screen.visibleFrame)")
+            print("Dock尺寸: \(dockSize)")
+            print("锚点位置: \(anchorPoint)")
+            print("新的窗口frame: \(newFrame)")
+            print("边缘偏移量: \(dockViewModel.edgeOffset)")
+            
+            lastFrame = newFrame
+            self.setFrame(newFrame, display: true, animate: true)
+        }
     }
     
     private func updateWindowSize() {
+        // 防止重复更新
+        guard !isUpdatingPosition else { return }
+        isUpdatingPosition = true
+        defer { isUpdatingPosition = false }
+        
         guard let screen = NSScreen.main else { return }
         
         let dockSize = dockViewModel.calculateDockSize()
@@ -163,7 +185,11 @@ class DockWindow: NSWindow {
             height: dockSize.height
         )
         
-        self.setFrame(newFrame, display: true, animate: true)
+        // 只在frame真正改变时才更新
+        if newFrame != lastFrame {
+            lastFrame = newFrame
+            self.setFrame(newFrame, display: true, animate: true)
+        }
     }
 }
 

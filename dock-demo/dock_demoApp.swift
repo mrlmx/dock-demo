@@ -33,6 +33,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var positionObserver: AnyCancellable?
     
+    override init() {
+        super.init()
+        print("AppDelegate 初始化")
+    }
+    
+    deinit {
+        print("AppDelegate 释放")
+    }
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 设置状态栏图标
         setupStatusBar()

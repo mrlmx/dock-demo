@@ -30,8 +30,10 @@ class DockViewModel: ObservableObject {
     private var hideTimer: Timer?
     private let hideDelay: TimeInterval = 0.5 // 鼠标离开后的延迟隐藏时间
     private var permissionCheckTimer: Timer? // 权限检查定时器
+    private var memoryMonitorTimer: Timer? // 内存监控定时器
     
     init() {
+        print("DockViewModel 初始化")
         // 确保在主线程上初始化
         DispatchQueue.main.async { [weak self] in
             self?.items = DockItem.sampleItems
@@ -40,13 +42,20 @@ class DockViewModel: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self?.startMouseTracking()
             }
+            
+            // 启动内存监控（仅用于调试）
+            #if DEBUG
+            self?.startMemoryMonitoring()
+            #endif
         }
     }
     
     deinit {
+        print("DockViewModel 释放")
         stopMouseTracking()
         hideTimer?.invalidate()
         permissionCheckTimer?.invalidate()
+        memoryMonitorTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
     
@@ -54,11 +63,13 @@ class DockViewModel: ObservableObject {
     private func startMouseTracking() {
         // 检查是否有辅助功能权限
         guard AXIsProcessTrusted() else {
-            print("警告：没有辅助功能权限，无法监听全局鼠标事件")
-            // 设置一个定时器，定期检查权限状态
+            // 只在第一次没有权限时打印警告
             if permissionCheckTimer == nil {
+                print("警告：没有辅助功能权限，无法监听全局鼠标事件")
+                // 设置一个定时器，定期检查权限状态
                 permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
                     if AXIsProcessTrusted() {
+                        print("辅助功能权限已获得，开始鼠标追踪")
                         timer.invalidate()
                         self?.permissionCheckTimer = nil
                         self?.startMouseTracking()
@@ -215,4 +226,36 @@ class DockViewModel: ObservableObject {
             }
         }
     }
+    
+    // MARK: - 内存监控（调试用）
+    #if DEBUG
+    private func startMemoryMonitoring() {
+        memoryMonitorTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            let info = ProcessInfo.processInfo
+            let physicalMemory = info.physicalMemory
+            let memoryUsage = self.getMemoryUsage()
+            print("=== 内存使用情况 ===")
+            print("物理内存: \(physicalMemory / 1024 / 1024) MB")
+            print("当前使用: \(memoryUsage / 1024 / 1024) MB")
+            print("==================")
+        }
+    }
+    
+    private func getMemoryUsage() -> UInt64 {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+        
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(mach_task_self_,
+                         task_flavor_t(MACH_TASK_BASIC_INFO),
+                         $0,
+                         &count)
+            }
+        }
+        
+        return result == KERN_SUCCESS ? info.resident_size : 0
+    }
+    #endif
 } 
